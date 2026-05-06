@@ -20,7 +20,7 @@ def resource_path(relative_path):
         base_path = sys._MEIPASS
     except Exception:
         # 源码运行时，用当前目录
-        base_path = os.path.abspath("./1600pic")
+        base_path = os.path.abspath("./1920pic")
 
     return os.path.join(base_path, relative_path)
 
@@ -54,7 +54,7 @@ CONFIDENCE = 0.7
 # 检测间隔（秒）
 CHECK_INTERVAL = 2
 # 点击后的冷却时间（避免重复点击，秒）
-COOLDOWN = 0.5
+COOLDOWN = 0.1
 # 窗口检测
 WINDOW_CHECK_INTERVAL = 2
 
@@ -171,10 +171,15 @@ def check_reconnect_thread():
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到掉线，点击重新连接...")
                 # 临时激活Dota2窗口
                 activate_dota_window()
-                time.sleep(0.1)
+                time.sleep(0.2)
+                x, y = pyautogui.center(reconnect_pos)
+                pyautogui.moveTo(x, y)
+                pyautogui.mouseDown()
+                time.sleep(0.1)  # 按住0.1秒，让窗口收到按下的信号
+                pyautogui.mouseUp()
+                time.sleep(COOLDOWN)
                 pyautogui.click(pyautogui.center(reconnect_pos))
                 recon_count += 1
-                time.sleep(COOLDOWN)
                 with processing_lock:
                     is_processing = False
 
@@ -184,7 +189,7 @@ def check_reconnect_thread():
 
                     print(f"[{time.strftime('%H:%M:%S')}] 连续{recon_count}次重连失败，自动重启Dota2...")
                     os.system("taskkill /f /im dota2.exe")
-                    time.sleep(3)
+                    time.sleep(10)
                     # os.startfile("steam://rungameid/570")
                     # time.sleep(10)
                     recon_count = 0
@@ -212,9 +217,14 @@ def check_accept_thread():
                     is_processing = True
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到游戏开局，点击接受...")
                 activate_dota_window()
+                time.sleep(0.2)
+                x, y = pyautogui.center(accept_match_pos)
+                pyautogui.moveTo(x, y)
+                pyautogui.mouseDown()
                 time.sleep(0.1)
-                pyautogui.click(pyautogui.center(accept_match_pos))
+                pyautogui.mouseUp()
                 time.sleep(COOLDOWN)
+                pyautogui.click(pyautogui.center(accept_match_pos))
                 with processing_lock:
                     is_processing = False
         except Exception as e:
@@ -238,9 +248,14 @@ def check_invite_thread():
                     is_processing = True
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到好友邀请，点击接受...")
                 activate_dota_window()
+                time.sleep(0.2)
+                x, y = pyautogui.center(accept_invite_pos)
+                pyautogui.moveTo(x, y)
+                pyautogui.mouseDown()
                 time.sleep(0.1)
-                pyautogui.click(pyautogui.center(accept_invite_pos))
+                pyautogui.mouseUp()
                 time.sleep(COOLDOWN)
+                pyautogui.click(pyautogui.center(accept_invite_pos))
                 with processing_lock:
                     is_processing = False
         except Exception as e:
@@ -265,7 +280,7 @@ def check_confirm_thread():
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到游戏更新通知，正在自动重启游戏进行更新...")
                 # 强制关闭Dota2进程
                 os.system("taskkill /f /im dota2.exe")
-                time.sleep(3)
+                time.sleep(10)
                 # 启动Steam的Dota2，自动触发更新
                 # os.startfile("steam://rungameid/570")
                 # time.sleep(10)
@@ -286,7 +301,7 @@ def check_confirm_thread():
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到游戏错误通知，正在自动重启游戏...")
                 # 强制关闭Dota2进程
                 os.system("taskkill /f /im dota2.exe")
-                time.sleep(3)
+                time.sleep(10)
                 # 启动Steam的Dota2，自动触发更新
                 # os.startfile("steam://rungameid/570")
                 # time.sleep(10)
@@ -307,9 +322,14 @@ def check_confirm_thread():
                     is_processing = True
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到确定按钮，点击确定...")
                 activate_dota_window()
+                time.sleep(0.2)
+                x, y = pyautogui.center(ok_pos)
+                pyautogui.moveTo(x, y)
+                pyautogui.mouseDown()
                 time.sleep(0.1)
-                pyautogui.click(pyautogui.center(ok_pos))
+                pyautogui.mouseUp()
                 time.sleep(COOLDOWN)
+                pyautogui.click(pyautogui.center(ok_pos))
                 with processing_lock:
                     is_processing = False
         except Exception as e:
@@ -325,9 +345,14 @@ def check_confirm_thread():
                     is_processing = True
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到确定按钮，点击确定...")
                 activate_dota_window()
+                time.sleep(0.2)
+                x, y = pyautogui.center(ok_pos2)
+                pyautogui.moveTo(x, y)
+                pyautogui.mouseDown()
                 time.sleep(0.1)
-                pyautogui.click(pyautogui.center(ok_pos2))
+                pyautogui.mouseUp()
                 time.sleep(COOLDOWN)
+                pyautogui.click(pyautogui.center(ok_pos2))
                 with processing_lock:
                     is_processing = False
         except Exception as e:
@@ -351,9 +376,14 @@ def check_ready_thread():
                     is_processing = True
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到就绪按钮，点击就绪...")
                 activate_dota_window()
+                time.sleep(0.2)
+                x, y = pyautogui.center(accept_ready_pos)
+                pyautogui.moveTo(x, y)
+                pyautogui.mouseDown()
                 time.sleep(0.1)
-                pyautogui.click(pyautogui.center(accept_ready_pos))
+                pyautogui.mouseUp()
                 time.sleep(COOLDOWN)
+                pyautogui.click(pyautogui.center(accept_ready_pos))
                 with processing_lock:
                     is_processing = False
         except Exception as e:
@@ -377,9 +407,14 @@ def check_no_thread():
                     is_processing = True
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到关闭按钮，点击关闭...")
                 activate_dota_window()
+                time.sleep(0.2)
+                x, y = pyautogui.center(accept_no_pos)
+                pyautogui.moveTo(x, y)
+                pyautogui.mouseDown()
                 time.sleep(0.1)
-                pyautogui.click(pyautogui.center(accept_no_pos))
+                pyautogui.mouseUp()
                 time.sleep(COOLDOWN)
+                pyautogui.click(pyautogui.center(accept_no_pos))
                 with processing_lock:
                     is_processing = False
         except Exception as e:
@@ -395,9 +430,14 @@ def check_no_thread():
                     is_processing = True
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到观战按钮，点击否...")
                 activate_dota_window()
+                time.sleep(0.2)
+                x, y = pyautogui.center(accept_no_pos2)
+                pyautogui.moveTo(x, y)
+                pyautogui.mouseDown()
                 time.sleep(0.1)
-                pyautogui.click(pyautogui.center(accept_no_pos2))
+                pyautogui.mouseUp()
                 time.sleep(COOLDOWN)
+                pyautogui.click(pyautogui.center(accept_no_pos2))
                 with processing_lock:
                     is_processing = False
         except Exception as e:
@@ -421,9 +461,14 @@ def check_end_thread():
                     is_processing = True
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到游戏结束，点击继续...")
                 activate_dota_window()
+                time.sleep(0.2)
+                x, y = pyautogui.center(accept_end_pos)
+                pyautogui.moveTo(x, y)
+                pyautogui.mouseDown()
                 time.sleep(0.1)
-                pyautogui.click(pyautogui.center(accept_end_pos))
+                pyautogui.mouseUp()
                 time.sleep(COOLDOWN)
+                pyautogui.click(pyautogui.center(accept_end_pos))
                 with processing_lock:
                     is_processing = False
         except Exception as e:
@@ -436,8 +481,8 @@ def main():
     print("-" * 50)
     print("这是橙子头ricky制作的自动接受、自动重连、自动更新脚本")
     print("This is a dota2 script including AUTO ACCEPT, AUTO RECONNECT, AUTO UPDATE from ricky_Orange_Head")
-    print("请把Dota2客户端设置成 1600*900p 窗口模式！语言仅支持中文！")
-    print("Please set Dota2 1600*900p windowed, Chinese Language")
+    print("请把Dota2客户端设置成 1920*1080p 窗口模式！语言仅支持中文！")
+    print("Please set Dota2 1920*1080p windowed, Chinese Language")
     print("脚本运行期间不要关闭小黑框！")
     print("Keep small black window on!")
     print("脚本仅模拟鼠标点击，不会修改游戏数据，理论上不会触发 VAC 封禁")
