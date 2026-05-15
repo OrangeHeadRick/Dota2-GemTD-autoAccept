@@ -463,7 +463,7 @@ def main():
     print("-" * 80)
     print("这是橙子头ricky制作的自动接受、自动重连、自动更新脚本")
     print("This is a dota2 script including AUTO ACCEPT, AUTO RECONNECT, AUTO UPDATE from ricky_Orange_Head")
-    print("请把Dota2客户端设置成 1820*1080p 窗口模式！语言仅支持中文！")
+    print("请把Dota2客户端设置成 1920*1080p 窗口模式！语言仅支持中文！")
     print("Please set Dota2 1920*1080p windowed, Chinese Language")
     print("脚本运行期间不要关闭小黑框！")
     print("Keep small black window on!")
