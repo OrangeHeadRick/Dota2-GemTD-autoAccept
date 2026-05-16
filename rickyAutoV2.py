@@ -20,7 +20,7 @@ def resource_path(relative_path):
         base_path = sys._MEIPASS
     except Exception:
         # 源码运行时，用当前目录
-        base_path = os.path.abspath("./1920pic")
+        base_path = os.path.abspath("./2560pic")
 
     return os.path.join(base_path, relative_path)
 
@@ -59,7 +59,7 @@ COOLDOWN = 0.1
 WINDOW_CHECK_INTERVAL = 2
 
 recon_count = 0
-REC_MAX = 18
+REC_MAX = 17
 
 accept_img = load_image(ACCEPT_IMG_1)
 accept_img_2 = load_image(ACCEPT_IMG_2)
@@ -152,7 +152,7 @@ def window_maintain_thread():
             if not dota_hwnd:
                 print(f"[{time.strftime('%H:%M:%S')}] 未检测到Dota2窗口，自动启动游戏...")
                 os.startfile("steam://rungameid/570")
-                time.sleep(18)  # 等游戏启动
+                time.sleep(45)  # 等游戏启动
                 continue
             if dota_hwnd and win32gui.IsIconic(dota_hwnd):
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到Dota2窗口被最小化，自动恢复...")
@@ -197,7 +197,7 @@ def check_reconnect_thread():
 
                     print(f"[{time.strftime('%H:%M:%S')}] 连续{recon_count}次重连失败，自动重启Dota2...")
                     os.system("taskkill /f /im dota2.exe")
-                    time.sleep(18)
+                    time.sleep(45)
                     # os.startfile("steam://rungameid/570")
                     # time.sleep(10)
                     recon_count = 0
@@ -284,7 +284,7 @@ def check_confirm_thread():
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到游戏更新通知，正在自动重启游戏进行更新...")
                 # 强制关闭Dota2进程
                 os.system("taskkill /f /im dota2.exe")
-                time.sleep(18)
+                time.sleep(45)
                 # 启动Steam的Dota2，自动触发更新
                 # os.startfile("steam://rungameid/570")
                 # time.sleep(10)
@@ -305,7 +305,7 @@ def check_confirm_thread():
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到游戏错误通知，正在自动重启游戏...")
                 # 强制关闭Dota2进程
                 os.system("taskkill /f /im dota2.exe")
-                time.sleep(18)
+                time.sleep(45)
                 # 启动Steam的Dota2，自动触发更新
                 # os.startfile("steam://rungameid/570")
                 # time.sleep(10)
@@ -324,22 +324,30 @@ def check_confirm_thread():
             if ok_pos:
                 has_update = False
                 has_error = False
-                update_check = pyautogui.locateOnScreen(
-                    update_img,
-                    confidence=CONFIDENCE,
-                    grayscale=True,
-                    region=mid_region
-                )
-                if update_check:
-                    has_update = True
-                error_check = pyautogui.locateOnScreen(
-                    error_img,
-                    confidence=CONFIDENCE,
-                    grayscale=True,
-                    region=mid_region
-                )
-                if error_check:
-                    has_error = True
+
+                try:
+                    update_check = pyautogui.locateOnScreen(
+                        update_img,
+                        confidence=CONFIDENCE,
+                        grayscale=True,
+                        region=mid_region
+                    )
+                    if update_check:
+                        has_update = True
+                except Exception:
+                    has_update = False
+
+                try:
+                    error_check = pyautogui.locateOnScreen(
+                        error_img,
+                        confidence=CONFIDENCE,
+                        grayscale=True,
+                        region=mid_region
+                    )
+                    if error_check:
+                        has_error = True
+                except Exception:
+                    has_error = False
 
                 if has_update or has_error:
                     # print(f"[{time.strftime('%H:%M:%S')}] 检测到确定按钮，但这是系统弹窗，跳过...")
@@ -508,8 +516,8 @@ def main():
     print("-" * 80)
     print("这是橙子头ricky制作的自动接受、自动重连、自动更新脚本")
     print("This is a dota2 script including AUTO ACCEPT, AUTO RECONNECT, AUTO UPDATE from ricky_Orange_Head")
-    print("请把Dota2客户端设置成 1920*1080p 窗口模式！语言仅支持中文！")
-    print("Please set Dota2 1920*1080p windowed, Chinese Language")
+    print("请把Dota2客户端设置成 2560*1440p 窗口模式！语言仅支持中文！")
+    print("Please set Dota2 2560*1440p windowed, Chinese Language")
     print("脚本运行期间不要关闭小黑框！")
     print("Keep small black window on!")
     print("如果脚本运行时通过远程软件等方式改变了屏幕分辨率，请重新运行该脚本！")
