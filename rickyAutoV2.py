@@ -1,6 +1,7 @@
 import pyautogui
 import win32gui
 import win32con
+import ctypes
 import time
 import sys
 import os
@@ -11,6 +12,7 @@ import threading
 is_processing = False
 processing_lock = threading.Lock()
 
+ctypes.windll.user32.SetProcessDPIAware()
 
 # 资源路径处理，支持打包后读取嵌入的图片
 def resource_path(relative_path):
@@ -20,7 +22,7 @@ def resource_path(relative_path):
         base_path = sys._MEIPASS
     except Exception:
         # 源码运行时，用当前目录
-        base_path = os.path.abspath("./2560pic")
+        base_path = os.path.abspath("./1920pic")
 
     return os.path.join(base_path, relative_path)
 
@@ -48,6 +50,7 @@ READY_IMG = resource_path("ready.jpg")
 END_IMG = resource_path("end.jpg")
 UPDATE_IMG = resource_path("update.jpg")
 ERROR_IMG = resource_path("error.jpg")
+DC_IMG = resource_path("dc.jpg")
 
 # 图像匹配的精度（0~1，越高要求越严格，建议0.7~0.8）
 CONFIDENCE = 0.7
@@ -59,7 +62,10 @@ COOLDOWN = 0.1
 WINDOW_CHECK_INTERVAL = 2
 
 recon_count = 0
-REC_MAX = 17
+REC_MAX = 18
+
+restart_count = 0
+RESTART_MAX = 6
 
 accept_img = load_image(ACCEPT_IMG_1)
 accept_img_2 = load_image(ACCEPT_IMG_2)
@@ -72,17 +78,7 @@ ready_img = load_image(READY_IMG)
 end_img = load_image(END_IMG)
 update_img = load_image(UPDATE_IMG)
 error_img = load_image(ERROR_IMG)
-
-# ==============================================
-# 动态计算中间搜索区域，适配所有分辨率！
-# ==============================================
-screen_width, screen_height = pyautogui.size()
-mid_region = (
-    int(screen_width * 0.1),  # 左边留10%
-    int(screen_height * 0.1), # 上边留10%
-    int(screen_width * 0.8),  # 宽度占80%
-    int(screen_height * 0.8)  # 高度占80%
-)
+dc_img = load_image(DC_IMG)
 
 
 def get_dota_window():
@@ -90,7 +86,6 @@ def get_dota_window():
     自动查找Dota2的窗口，支持中英文标题
     """
     hwnds = []
-
     def callback(hwnd, extra):
         if win32gui.IsWindowVisible(hwnd):
             title = win32gui.GetWindowText(hwnd)
@@ -101,6 +96,20 @@ def get_dota_window():
 
     win32gui.EnumWindows(callback, hwnds)
     return hwnds[0] if hwnds else None
+
+def get_dota_window_region():
+    """
+    获取Dota2窗口的位置，用来动态计算搜索区域，不管窗口移到哪都能用
+    """
+    hwnd = get_dota_window()
+    if not hwnd:
+        # 没找到窗口，就搜整个屏幕，兜底，这里直接动态获取屏幕大小
+        sw, sh = pyautogui.size()
+        return (0, 0, sw, sh)
+    # 获取窗口的位置和大小
+    left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+    # 返回窗口的整个区域，弹窗永远在窗口里
+    return (left, top, right - left, bottom - top)
 
 
 def restore_dota_window():
@@ -152,7 +161,7 @@ def window_maintain_thread():
             if not dota_hwnd:
                 print(f"[{time.strftime('%H:%M:%S')}] 未检测到Dota2窗口，自动启动游戏...")
                 os.startfile("steam://rungameid/570")
-                time.sleep(45)  # 等游戏启动
+                time.sleep(30)  # 等游戏启动
                 continue
             if dota_hwnd and win32gui.IsIconic(dota_hwnd):
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到Dota2窗口被最小化，自动恢复...")
@@ -163,17 +172,47 @@ def window_maintain_thread():
             pass
         time.sleep(WINDOW_CHECK_INTERVAL)
 
-
 def check_reconnect_thread():
-    global is_processing, recon_count
+    global is_processing, recon_count, restart_count
     while True:
         if is_processing:
             time.sleep(COOLDOWN)
             continue
+
         try:
+            if restart_count >= RESTART_MAX:
+                dota_region = get_dota_window_region()
+                dc_pos = pyautogui.locateOnScreen(
+                    dc_img,
+                    confidence=CONFIDENCE, grayscale=True, region = dota_region
+                )
+                if dc_pos:
+                    with processing_lock:
+                        is_processing = True
+                    print(f"[{time.strftime('%H:%M:%S')}] 重启{restart_count}次还是连不上，自动断开连接...")
+                    activate_dota_window()
+                    time.sleep(0.3)
+                    x, y = pyautogui.center(dc_pos)
+                    pyautogui.moveTo(x, y)
+                    pyautogui.mouseDown()
+                    time.sleep(COOLDOWN)
+                    pyautogui.mouseUp()
+                    # 断开后重置所有计数
+                    recon_count = 0
+                    restart_count = 0
+                    with processing_lock:
+                        is_processing = False
+                    time.sleep(CHECK_INTERVAL)
+                    continue
+        except Exception:
+            pass
+
+
+        try:
+            dota_region = get_dota_window_region()
             reconnect_pos = pyautogui.locateOnScreen(
                 rec_img,
-                confidence=CONFIDENCE, grayscale=True
+                confidence=CONFIDENCE, grayscale=True, region = dota_region
             )
             if reconnect_pos:
                 with processing_lock:
@@ -185,29 +224,30 @@ def check_reconnect_thread():
                 x, y = pyautogui.center(reconnect_pos)
                 pyautogui.moveTo(x, y)
                 pyautogui.mouseDown()
-                time.sleep(COOLDOWN)  # 按住0.1秒，让窗口收到按下的信号
+                time.sleep(COOLDOWN)
                 pyautogui.mouseUp()
                 recon_count += 1
+
                 with processing_lock:
                     is_processing = False
 
-                if recon_count > REC_MAX:
+                time.sleep(3)
+
+                # 重连太多次，重启
+                if recon_count >= REC_MAX:
                     with processing_lock:
                         is_processing = True
-
-                    print(f"[{time.strftime('%H:%M:%S')}] 连续{recon_count}次重连失败，自动重启Dota2...")
+                    restart_count += 1
+                    print(f"[{time.strftime('%H:%M:%S')}] 连续{recon_count}次重连失败，这是第{restart_count}次重启...")
                     os.system("taskkill /f /im dota2.exe")
-                    time.sleep(45)
-                    # os.startfile("steam://rungameid/570")
-                    # time.sleep(10)
+                    time.sleep(30)
                     recon_count = 0
                     with processing_lock:
                         is_processing = False
-
         except Exception as e:
             pass
-        time.sleep(CHECK_INTERVAL)
 
+        time.sleep(CHECK_INTERVAL)
 
 def check_accept_thread():
     global is_processing
@@ -216,9 +256,10 @@ def check_accept_thread():
             time.sleep(COOLDOWN)
             continue
         try:
+            dota_region = get_dota_window_region()
             accept_match_pos = pyautogui.locateOnScreen(
                 accept_img,
-                confidence=CONFIDENCE, grayscale=True
+                confidence=CONFIDENCE, grayscale=True, region = dota_region
             )
             if accept_match_pos:
                 with processing_lock:
@@ -245,9 +286,10 @@ def check_invite_thread():
             time.sleep(COOLDOWN)
             continue
         try:
+            dota_region = get_dota_window_region()
             accept_invite_pos = pyautogui.locateOnScreen(
                 accept_img_2,
-                confidence=CONFIDENCE, grayscale=True
+                confidence=CONFIDENCE, grayscale=True, region = dota_region
             )
             if accept_invite_pos:
                 with processing_lock:
@@ -274,9 +316,10 @@ def check_confirm_thread():
             time.sleep(COOLDOWN)
             continue
         try:
+            dota_region = get_dota_window_region()
             update_pos = pyautogui.locateOnScreen(
                 update_img,
-                confidence=CONFIDENCE, grayscale=True,region=mid_region
+                confidence=CONFIDENCE, grayscale=True, region = dota_region
             )
             if update_pos:
                 with processing_lock:
@@ -284,7 +327,7 @@ def check_confirm_thread():
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到游戏更新通知，正在自动重启游戏进行更新...")
                 # 强制关闭Dota2进程
                 os.system("taskkill /f /im dota2.exe")
-                time.sleep(45)
+                time.sleep(30)
                 # 启动Steam的Dota2，自动触发更新
                 # os.startfile("steam://rungameid/570")
                 # time.sleep(10)
@@ -295,9 +338,10 @@ def check_confirm_thread():
             pass
 
         try:
+            dota_region = get_dota_window_region()
             error_pos = pyautogui.locateOnScreen(
                 error_img,
-                confidence=CONFIDENCE, grayscale=True,region=mid_region
+                confidence=CONFIDENCE, grayscale=True, region = dota_region
             )
             if error_pos:
                 with processing_lock:
@@ -305,7 +349,7 @@ def check_confirm_thread():
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到游戏错误通知，正在自动重启游戏...")
                 # 强制关闭Dota2进程
                 os.system("taskkill /f /im dota2.exe")
-                time.sleep(45)
+                time.sleep(30)
                 # 启动Steam的Dota2，自动触发更新
                 # os.startfile("steam://rungameid/570")
                 # time.sleep(10)
@@ -317,9 +361,10 @@ def check_confirm_thread():
 
         try:
             # 没有更新，再检测确定按钮
+            dota_region = get_dota_window_region()
             ok_pos = pyautogui.locateOnScreen(
                 confirm_img,
-                confidence=CONFIDENCE, grayscale=True
+                confidence=CONFIDENCE, grayscale=True, region = dota_region
             )
             if ok_pos:
                 has_update = False
@@ -329,8 +374,7 @@ def check_confirm_thread():
                     update_check = pyautogui.locateOnScreen(
                         update_img,
                         confidence=CONFIDENCE,
-                        grayscale=True,
-                        region=mid_region
+                        grayscale=True, region = dota_region
                     )
                     if update_check:
                         has_update = True
@@ -341,8 +385,7 @@ def check_confirm_thread():
                     error_check = pyautogui.locateOnScreen(
                         error_img,
                         confidence=CONFIDENCE,
-                        grayscale=True,
-                        region=mid_region
+                        grayscale=True, region = dota_region
                     )
                     if error_check:
                         has_error = True
@@ -366,23 +409,45 @@ def check_confirm_thread():
                 pyautogui.mouseUp()
                 with processing_lock:
                     is_processing = False
+                continue
         except Exception as e:
             pass
 
         try:
-            ok_pos2 = pyautogui.locateOnScreen(
+            # 没有更新，再检测确定按钮
+            dota_region = get_dota_window_region()
+            ok_pos_2 = pyautogui.locateOnScreen(
                 confirm_img_2,
-                confidence=CONFIDENCE, grayscale=True
+                confidence=CONFIDENCE, grayscale=True, region=dota_region
             )
-            if ok_pos2:
-                update_check = pyautogui.locateOnScreen(
-                    update_img,
-                    confidence=CONFIDENCE,
-                    grayscale=True,
-                    region=mid_region
-                )
-                if update_check:
-                    print(f"[{time.strftime('%H:%M:%S')}] 检测到确定按钮，但这是更新弹窗，跳过...")
+            if ok_pos_2:
+                has_update = False
+                has_error = False
+
+                try:
+                    update_check = pyautogui.locateOnScreen(
+                        update_img,
+                        confidence=CONFIDENCE,
+                        grayscale=True, region=dota_region
+                    )
+                    if update_check:
+                        has_update = True
+                except Exception:
+                    has_update = False
+
+                try:
+                    error_check = pyautogui.locateOnScreen(
+                        error_img,
+                        confidence=CONFIDENCE,
+                        grayscale=True, region=dota_region
+                    )
+                    if error_check:
+                        has_error = True
+                except Exception:
+                    has_error = False
+
+                if has_update or has_error:
+                    # print(f"[{time.strftime('%H:%M:%S')}] 检测到确定按钮，但这是系统弹窗，跳过...")
                     time.sleep(CHECK_INTERVAL)
                     continue
 
@@ -391,7 +456,7 @@ def check_confirm_thread():
                 print(f"[{time.strftime('%H:%M:%S')}] 检测到确定按钮，点击确定...")
                 activate_dota_window()
                 time.sleep(0.3)
-                x, y = pyautogui.center(ok_pos2)
+                x, y = pyautogui.center(ok_pos_2)
                 pyautogui.moveTo(x, y)
                 pyautogui.mouseDown()
                 time.sleep(COOLDOWN)
@@ -410,9 +475,10 @@ def check_ready_thread():
             time.sleep(COOLDOWN)
             continue
         try:
+            dota_region = get_dota_window_region()
             accept_ready_pos = pyautogui.locateOnScreen(
                 ready_img,
-                confidence=CONFIDENCE, grayscale=True
+                confidence=CONFIDENCE, grayscale=True, region = dota_region
             )
             if accept_ready_pos:
                 with processing_lock:
@@ -438,10 +504,13 @@ def check_no_thread():
         if is_processing:
             time.sleep(COOLDOWN)
             continue
+
+        dota_region = get_dota_window_region()
         try:
+
             accept_no_pos = pyautogui.locateOnScreen(
                 no_img,
-                confidence=CONFIDENCE, grayscale=True
+                confidence=CONFIDENCE, grayscale=True, region = dota_region
             )
             if accept_no_pos:
                 with processing_lock:
@@ -460,9 +529,10 @@ def check_no_thread():
             pass
 
         try:
+
             accept_no_pos2 = pyautogui.locateOnScreen(
                 no_img_2,
-                confidence=CONFIDENCE, grayscale=True
+                confidence=CONFIDENCE, grayscale=True, region = dota_region
             )
             if accept_no_pos2:
                 with processing_lock:
@@ -489,9 +559,10 @@ def check_end_thread():
             time.sleep(COOLDOWN)
             continue
         try:
+            dota_region = get_dota_window_region()
             accept_end_pos = pyautogui.locateOnScreen(
                 end_img,
-                confidence=CONFIDENCE, grayscale=True
+                confidence=CONFIDENCE, grayscale=True, region = dota_region
             )
             if accept_end_pos:
                 with processing_lock:
@@ -511,13 +582,12 @@ def check_end_thread():
         time.sleep(CHECK_INTERVAL)
 
 
-
 def main():
     print("-" * 80)
     print("这是橙子头ricky制作的自动接受、自动重连、自动更新脚本")
     print("This is a dota2 script including AUTO ACCEPT, AUTO RECONNECT, AUTO UPDATE from ricky_Orange_Head")
-    print("请把Dota2客户端设置成 2560*1440p 窗口模式！语言仅支持中文！")
-    print("Please set Dota2 2560*1440p windowed, Chinese Language")
+    print("请把Dota2客户端设置成 1920*1080p 窗口模式！语言仅支持中文！")
+    print("Please set Dota2 1920*1080p windowed, Chinese Language")
     print("脚本运行期间不要关闭小黑框！")
     print("Keep small black window on!")
     print("如果脚本运行时通过远程软件等方式改变了屏幕分辨率，请重新运行该脚本！")
@@ -531,22 +601,6 @@ def main():
     # 开启pyautogui的紧急停止：鼠标移到左上角会自动终止脚本
     pyautogui.FAILSAFE = True
 
-    # 启动前先检查截图文件是否存在
-    # import os
-    # for img_path in [
-    #     ACCEPT_IMG_1,
-    #     ACCEPT_IMG_2,
-    #     CONFIRM_IMG,
-    #     CONFIRM_IMG_2,
-    #     RECONNECT_IMG,
-    #     NO_IMG,
-    #     NO_IMG_2,
-    #     READY_IMG,
-    #     UPDATE_IMG,
-    # ]:
-    #     if not os.path.exists(img_path):
-    #         print(f"错误：未找到截图文件 {img_path}，请先准备好按钮截图并和脚本放在同一个文件夹！")
-    #         return
 
     # 启动所有线程
     threads = [
@@ -570,9 +624,9 @@ def main():
         print("\n" + "-" * 80)
         print("程序已正常退出。")
 
-# pyinstaller --onefile --add-data "./1920pic/accept.jpg;." --add-data "./1920pic/accept2.jpg;." --add-data "./1920pic/confirm.jpg;." --add-data "./1920pic/confirm2.jpg;." --add-data "./1920pic/recon.jpg;." --add-data "./1920pic/no.jpg;." --add-data "./1920pic/no2.jpg;." --add-data "./1920pic/ready.jpg;." --add-data "./1920pic/end.jpg;." --add-data "./1920pic/error.jpg;." --add-data "./1920pic/update.jpg;." rickyAutoV2.py
+# pyinstaller --onefile --add-data "./1920pic/accept.jpg;." --add-data "./1920pic/accept2.jpg;." --add-data "./1920pic/confirm.jpg;." --add-data "./1920pic/confirm2.jpg;." --add-data "./1920pic/recon.jpg;." --add-data "./1920pic/no.jpg;." --add-data "./1920pic/no2.jpg;." --add-data "./1920pic/ready.jpg;." --add-data "./1920pic/end.jpg;." --add-data "./1920pic/error.jpg;." --add-data "./1920pic/dc.jpg;." --add-data "./1920pic/update.jpg;." rickyAutoV2.py
 
-# pyinstaller --onefile --add-data "./1600pic/accept.jpg;." --add-data "./1600pic/accept2.jpg;." --add-data "./1600pic/confirm.jpg;." --add-data "./1600pic/confirm2.jpg;." --add-data "./1600pic/recon.jpg;." --add-data "./1600pic/no.jpg;." --add-data "./1600pic/no2.jpg;." --add-data "./1600pic/ready.jpg;." --add-data "./1600pic/end.jpg;." --add-data "./1600pic/error.jpg;." --add-data "./1600pic/update.jpg;." rickyAutoV2.py
+# pyinstaller --onefile --add-data "./1600pic/accept.jpg;." --add-data "./1600pic/accept2.jpg;." --add-data "./1600pic/confirm.jpg;." --add-data "./1600pic/confirm2.jpg;." --add-data "./1600pic/recon.jpg;." --add-data "./1600pic/no.jpg;." --add-data "./1600pic/no2.jpg;." --add-data "./1600pic/ready.jpg;." --add-data "./1600pic/end.jpg;." --add-data "./1600pic/error.jpg;."  --add-data "./1600pic/update.jpg;." rickyAutoV2.py
 
 if __name__ == "__main__":
     main()
